@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+from Services.LoadIndex import load_csv_files_to_pandas
 import os
 
 load_dotenv()
@@ -14,3 +15,5 @@ pg_password=os.getenv("POSTGRES_PASSWORD")
 pg_host=os.getenv("POSTGRES_HOST")
 pg_port=os.getenv("POSTGRES_PORT")
 pg_db=os.getenv("POSTGRES_DB")
+
+index_dict = load_csv_files_to_pandas()
