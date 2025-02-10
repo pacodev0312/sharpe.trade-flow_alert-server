@@ -51,6 +51,7 @@ def get_all_conditions():
 
 @router.post("/postAddNewFilteringOption")
 def post_add_new_filtering_option(condition, email):
+    print(condition)
     condition_dict = dict(item.split(":") for item in condition.split(",") if ':' in item)
     title = condition_dict.get("title", None)
     id = filtering_option.add_option_by_email(db=Session(), email=email, title=title, condition=condition, status=OptionStatus.Public)

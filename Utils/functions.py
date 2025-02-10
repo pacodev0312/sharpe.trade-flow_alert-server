@@ -4,15 +4,57 @@ def real_time_filter(condition:str, data:str):
     filter_criteria = dict(item.split(":") for item in condition.split(",") if ':' in item)
     data_dict = json.loads(data)
     
+    
+    #  OptionType
+    if filter_criteria.get("optionType", None):
+        value = filter_criteria["optionType"]
+        if value == "Calls":
+            if data_dict["symbol_type"] != "CE":
+                return None
+        else:
+            if data_dict["symbol_type"] != "PE":
+                return None
+    # Products
+    if filter_criteria.get("products", None):
+        series_filters = {
+            "stocks": {"CE", "PE", "XX"},
+            "options": {"CE", "PE"},
+            "futures": {"XX"},
+        }
+
+        applicable_series = set()
+        selected_products = filter_criteria.get("products", "").lower().split("+")
+        
+        
+        if "stocks" in selected_products:
+            applicable_series.update(series_filters["stocks"])
+            if "options" in selected_products:
+                applicable_series.difference_update(series_filters["options"])
+            if "futures" in selected_products:
+                applicable_series.difference_update(series_filters["futures"])
+            
+            if data_dict["symbol_type"] in applicable_series:
+                return None
+        else:
+            if "options" in selected_products:
+                applicable_series.update(series_filters["options"])
+            if "futures" in selected_products:
+                applicable_series.update(series_filters["futures"])
+            
+            if data_dict["symbol_type"] not in applicable_series:
+                return None
+        print(applicable_series)
+    
+    # 
     if filter_criteria.get("buildUp", None) is not None:
         buildup = (filter_criteria["buildUp"]).split("+")
         unique_data = list(dict.fromkeys(buildup))
         if data_dict["oi_build_up"] not in unique_data:
             return None
     
-        # Add conditions only if the filter_criteria has valid values
+    # Add conditions only if the filter_criteria has valid values
     if filter_criteria.get("side", None) is not None:
-        if filter_criteria["side"] != data_dict["aggre"]:
+        if filter_criteria["side"] != data_dict["tag"]:
             return None
 
     if filter_criteria.get("sweep", None):
@@ -31,14 +73,7 @@ def real_time_filter(condition:str, data:str):
     # if filter_criteria.get("powerBlock", None):
     #     if data_dict["power_block"] == filter_criteria["powerBlock"])
 
-    if filter_criteria.get("optionType", None):
-        value = filter_criteria["optionType"]
-        if value == "Calls":
-            if data_dict["option_type"] != "CE":
-                return None
-        else:
-            if data_dict["option_type"] != "PE":
-                return None
+    
 
     # if filter_criteria.get("optionUnderlier", None):
     #     value = filter_criteria["optionUnderlier"]

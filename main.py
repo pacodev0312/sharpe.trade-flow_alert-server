@@ -3,7 +3,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime as dt
 import asyncio
 from sqlalchemy import text
+# region Monitoring
+# from prometheus_client import start_http_server, Gauge
+# import time
 
+# # Create a metric to track server uptime
+# server_up = Gauge('server_status', 'Server running status (1=up, 0=down)')
+
+# async def monitor_server():
+#     while True:
+#         server_up.set(1)  # Set to 1 if the server is running
+#         await asyncio.sleep(5)
+
+# # Start a separate metrics server
+# start_http_server(9100)  # Runs a Prometheus-compatible metrics server
+
+# monitor_server()
+# endregion
 from Services.kafka_consumer import Consumerservice
 from dependencies import bootstrap_servers, sasl_mechanism, sasl_plain_password, sasl_plain_username, security_protocol
 from Routes import HistoricalRoute
@@ -98,7 +114,8 @@ async def periodic_message_task():
 # Run the periodic task in the background
 @app.on_event("startup")
 async def startup_event():
-     asyncio.create_task(periodic_message_task())
+    # asyncio.create_task(monitor_server())
+    asyncio.create_task(periodic_message_task())
      
       # try:
     #     while True:
