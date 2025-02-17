@@ -2,14 +2,36 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime as dt
 import asyncio
-import json
+from sqlalchemy import text
+# region Monitoring
+# from prometheus_client import start_http_server, Gauge
+# import time
 
+# # Create a metric to track server uptime
+# server_up = Gauge('server_status', 'Server running status (1=up, 0=down)')
+
+# async def monitor_server():
+#     while True:
+#         server_up.set(1)  # Set to 1 if the server is running
+#         await asyncio.sleep(5)
+
+# # Start a separate metrics server
+# start_http_server(9100)  # Runs a Prometheus-compatible metrics server
+
+# monitor_server()
+# endregion
 from Services.kafka_consumer import Consumerservice
 from dependencies import bootstrap_servers, sasl_mechanism, sasl_plain_password, sasl_plain_username, security_protocol
 from Routes import HistoricalRoute
 from Services.db_connection import Base, engine
+from Utils.functions import real_time_filter
+
+import json
 
 Base.metadata.create_all(engine)
+
+with engine.connect() as connection:
+    connection.execute(text("ALTER SEQUENCE filtering_options_id_seq RESTART WITH 1000000"))
 
 app = FastAPI()
 
@@ -29,53 +51,73 @@ def main():
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[WebSocket] = []
+        self.active_connections: list[dict] = []  # Store active connections with websocket and condition
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, condition: str):
         await websocket.accept()
-        self.active_connections.append(websocket)
+        self.active_connections.append({"websocket": websocket, "condition": condition})
 
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+    async def disconnect(self, websocket: WebSocket):
+        self.active_connections = [
+            connection for connection in self.active_connections if connection["websocket"] != websocket
+        ]
+        try:
+            await websocket.close()
+        except Exception as e:
+            print(f"Error closing WebSocket: {e}")
 
     async def broadcast(self, message: str):
         for connection in self.active_connections[:]:  # Iterate over a copy of the list
+            websocket: WebSocket = connection["websocket"]
             try:
-                await connection.send_text(message)
+                message = real_time_filter(condition=connection["condition"], data=message)
+                if message is not None:
+                    await websocket.send_text(message)
             except Exception as e:
-                print(f"Error sending message: {e}")
-                self.disconnect(connection)
+                print(f"Error sending message to {websocket}: {e}")
+                await self.disconnect(websocket)
 
 
 manager = ConnectionManager()
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, condition: str):
+    await manager.connect(websocket, condition)
     try:
         while True:
-            # Keep the connection alive
-            data = await websocket.receive_text()
+            data = await websocket.receive_text()  # Keep the connection alive
             print(f"Received: {data}")
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
         print("Client disconnected")
     except Exception as e:
         print(f"Error in WebSocket connection: {e}")
+        await manager.disconnect(websocket)
         
 # Background task to send messages every second
 async def periodic_message_task():
     test_consumer = Consumerservice(
         topic_name="feed_tick_trade_format",
-        bootstrap_servers=bootstrap_servers,  # Update this with your Kafka broker
-        security_protocol=security_protocol,       # Adjust for your Kafka setup
+        bootstrap_servers=bootstrap_servers,
+        security_protocol=security_protocol,
         sasl_mechanism=sasl_mechanism,
         sasl_plain_username=sasl_plain_username,
         sasl_plain_password=sasl_plain_password,
     )
-    await test_consumer.start_consumer()
-    await test_consumer.consume_message(manager.broadcast)
-    # try:
+    try:
+        await test_consumer.start_consumer()
+        await test_consumer.consume_message(manager.broadcast)
+    except Exception as e:
+        print(f"Error in periodic message task: {e}")
+   
+
+# Run the periodic task in the background
+@app.on_event("startup")
+async def startup_event():
+    # asyncio.create_task(monitor_server())
+    asyncio.create_task(periodic_message_task())
+     
+      # try:
     #     while True:
     #         dt_now = dt.now()
     #         timestamp = dt_now.strftime("%Y-%m-%dT%H:%M:%S")
@@ -151,9 +193,4 @@ async def periodic_message_task():
     #         await asyncio.sleep(1)
     # except Exception as ex:
     #     print(ex)
-
-# Run the periodic task in the background
-@app.on_event("startup")
-async def startup_event():
-     asyncio.create_task(periodic_message_task())
     

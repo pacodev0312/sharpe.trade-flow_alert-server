@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Integer, Column, String, DateTime, Float, BIGINT, Double, Date, Index
+from sqlalchemy import create_engine, Integer, Column, String, DateTime, Float, BIGINT, Double, Date, Index, text, INTEGER
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dependencies import pg_db, pg_host, pg_password, pg_port, pg_username
@@ -98,7 +98,31 @@ class FFFilterTick(Base):
         
     __table_args__ = (
         Index('format_idx_symbol_timestamp_tickseq', 'symbol', 'timestamp', 'tick_seq', postgresql_using='btree'),
+        Index('format_idx_timestamp', 'timestamp', postgresql_using='btree'),
     )
+    
+class FilteringOptions(Base):
+    __tablename__ = "filtering_options"
+    
+    id = Column(BIGINT, primary_key=True, autoincrement=True)
+    email = Column(String, nullable=False)
+    title = Column(String, nullable=True)
+    condition = Column(String, nullable=False)
+    createdAt = Column(DateTime, nullable=False)
+    updatedAt = Column(DateTime, nullable=True)
+    creater = Column(String, nullable=True)
+    updater = Column(String, nullable=True)
+    status = Column(String, nullable=False)
+    
+class SectorList(Base):
+    __tablename__ = "sector"
+    
+    id = Column(INTEGER, primary_key=True, autoincrement=True)
+    company_name = Column(String, nullable=False)
+    industry = Column(String, nullable=False)
+    symbol = Column(String, nullable=False)
+    series = Column(String, nullable=False)
+    isin = Column(String, nullable=False)
 
 db_url=f"postgresql+psycopg2://{pg_username}:{pg_password}@{pg_host}:{pg_port}/{pg_db}"
 
