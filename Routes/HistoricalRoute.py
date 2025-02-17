@@ -12,7 +12,7 @@ router = APIRouter(
 )
 
 @router.get('/getLastNTicks')
-def get_last_n_ticks(condition: str):
+def get_last_n_ticks(condition: str, interval: Optional[str] = None):
     try:
         condition_dict = dict(item.split(":") for item in condition.split(",") if ':' in item)
         df =ff_trade.get_last_n_ticks(db=Session(), condition=condition_dict)

@@ -1,4 +1,4 @@
-from sqlalchemy import desc, and_, or_
+from sqlalchemy import desc, and_, or_, case
 from sqlalchemy.orm import Session, aliased
 from datetime import datetime as dt, timedelta
 from Services.db_connection import FFFilterTick
@@ -19,9 +19,15 @@ def get_last_n_ticks(db: Session, condition:dict):
     
     end_of_day_utc_str = end_of_day_utc.strftime("%Y-%m-%d %H:%M:%S")
     
-    query = db.query(FFFilterTick)
+    query = db.query(FFFilterTick,
+            case(
+                    [(FFFilterTick.symbol_type == "CE", ((FFFilterTick.strike - FFFilterTick.ltp) / FFFilterTick.ltp) * 100)],
+                    [(FFFilterTick.symbol_type == "PE", ((FFFilterTick.ltp - FFFilterTick.strike) / FFFilterTick.ltp) * 100)],
+                    else_=None
+                ).label("otm_percent")
+        )
     filters = []
-        
+           
     if filter_criteria.get("timeRangeFrom", None) is not None:
         filters.append(FFFilterTick.timestamp >= filter_criteria["timeRangeFrom"])
         
@@ -30,16 +36,58 @@ def get_last_n_ticks(db: Session, condition:dict):
         
     if filter_criteria.get("timeRangeTo", None) == None:
         filters.append(FFFilterTick.timestamp <= end_of_day_utc_str)
+    # product
+    if filter_criteria.get("products", None):
+        series_filters = {
+            "stocks": {"CE", "PE", "XX"},
+            "options": {"CE", "PE"},
+            "futures": {"XX"},
+        }
 
-    if filter_criteria.get("buildUp", None) is not None:
-        buildup = (filter_criteria["buildUp"]).split("+")
-        unique_data = list(dict.fromkeys(buildup))
-        filters.append(FFFilterTick.oi_build_up.in_(unique_data))
+        applicable_series = set()
+        selected_products = filter_criteria.get("products", "").lower().split("+")
+        
+        if "stocks" in selected_products:
+            applicable_series.update(series_filters["stocks"])
+            if "options" in selected_products:
+                applicable_series.difference_update(series_filters["options"])
+            if "futures" in selected_products:
+                applicable_series.difference_update(series_filters["futures"])
+            filters.append(~FFFilterTick.symbol_type.in_(applicable_series))
+        else:
+            if "options" in selected_products:
+                applicable_series.update(series_filters["options"])
+            if "futures" in selected_products:
+                applicable_series.update(series_filters["futures"])
+            filters.append(FFFilterTick.symbol_type.in_(applicable_series))
+    # OptionType
+    # if filter_criteria.get("optionType", None):
+    # Moneyness
+    if filter_criteria.get("moneyness", None):
+        moneyness = filter_criteria["moneyness"].split("+")
+        filters.append(FFFilterTick.moneyness.in_(moneyness))
+    # DTE
+    # if filter_criteria.get("dteFrom", None):
+    #     pass
+    # if filter_criteria.get("dteTo", None):
+    #     pass
+    #  LTP
+    if filter_criteria.get("ltpFrom", None) is not None:
+        filters.append(FFFilterTick.ltp >= filter_criteria["ltpFrom"])
     
-        # Add conditions only if the filter_criteria has valid values
+    if filter_criteria.get("ltpTo", None) is not None:
+        filters.append(FFFilterTick.ltp <= filter_criteria["ltpTo"])
+    #  LTQ
+    if filter_criteria.get("ltqFrom", None) is not None:
+        filters.append(FFFilterTick.last_size >= filter_criteria["ltpFrom"])
+    
+    if filter_criteria.get("ltqTo", None) is not None:
+        filters.append(FFFilterTick.last_size <= filter_criteria["ltpTo"])
+    # side
     if filter_criteria.get("side", None) is not None:
         filters.append(FFFilterTick.tag == filter_criteria["side"])
 
+    # flags
     if filter_criteria.get("sweep", None):
         value = f"""{filter_criteria["sweep"]}Sweep"""
         filters.append(or_(
@@ -66,38 +114,56 @@ def get_last_n_ticks(db: Session, condition:dict):
             filters.append(FFFilterTick.option_type == "CE")
         else:
             filters.append(FFFilterTick.option_type == "PE")
-
-    # if filter_criteria.get("optionUnderlier", None):
-    #     value = filter_criteria["optionUnderlier"]
-    #     if value == "Stock":
-    #         filters.append(FFFilterTick.option_type == "EQ")
-    #     else:
-    #         filters.append(FFFilterTick.option_type == "IN")
-
+    #  volume
     if filter_criteria.get("volumeFrom", None) is not None:
         filters.append(FFFilterTick.volume >= filter_criteria["volumeFrom"])
 
     if filter_criteria.get("volumeTo", None) is not None:
         filters.append(FFFilterTick.volume <= filter_criteria["volumeTo"])
-
+    # Trade Value
+    # OI
     if filter_criteria.get("oiFrom", None) is not None:
         filters.append(FFFilterTick.oi >= filter_criteria["oiFrom"])
 
     if filter_criteria.get("oiTo", None) is not None:
         filters.append(FFFilterTick.oi <= filter_criteria["oiTo"])
-        
-    if filter_criteria.get("oiChangeFrom", None) is not None:
-        filters.append(FFFilterTick.oi_change >= filter_criteria["oiChangeFrom"])
-    
-    if filter_criteria.get("oiChangeTo", None) is not None:
-        filters.append(FFFilterTick.oi_change <= filter_criteria["oiChangeTo"])
-                                                                 
-    # if filter_criteria.get("itmFrom", None) is not None:
-    #     filters.append(FFFilterTick.strike_difference >= filter_criteria["itmFrom"])
+    # OI_Change
+    # if filter_criteria.get("oiFrom", None) is not None:
+    #     filters.append(FFFilterTick.oi >= filter_criteria["oiFrom"])
 
-    # if filter_criteria.get("itmTo", None) is not None:
-    #     filters.append(FFFilterTick.strike_difference <= filter_criteria["itmTo"])
+    # if filter_criteria.get("oiTo", None) is not None:
+    #     filters.append(FFFilterTick.oi <= filter_criteria["oiTo"])
+    # OI percent 
+    # if filter_criteria.get("oiChangeFrom", None) is not None:
+    #     filters.append(FFFilterTick.oi_change >= filter_criteria["oiChangeFrom"])
     
+    # if filter_criteria.get("oiChangeTo", None) is not None:
+    #     filters.append(FFFilterTick.oi_change <= filter_criteria["oiChangeTo"])
+    
+    #  Volume/OI
+    if filter_criteria.get("ltqFrom", None) is not None:
+        filters.append(FFFilterTick.last_size >= filter_criteria["ltpFrom"])
+    
+    if filter_criteria.get("ltqTo", None) is not None:
+        filters.append(FFFilterTick.last_size <= filter_criteria["ltpTo"])
+    #  ATP/vWAP
+    if filter_criteria.get("ltqFrom", None) is not None:
+        filters.append(FFFilterTick.last_size >= filter_criteria["ltpFrom"])
+    
+    if filter_criteria.get("ltqTo", None) is not None:
+        filters.append(FFFilterTick.last_size <= filter_criteria["ltpTo"])
+    #  OTM %
+    # if filter_criteria.get("otm", None) is not None:
+    #     if  filter_criteria["otm"] == ""
+    #         filters.append(FFFilterTick.last_size >= filter_criteria["ltpFrom"])
+    #     else:
+    #         filters.append(FFFilterTick.)
+    
+    if filter_criteria.get("ltqTo", None) is not None:
+        filters.append(FFFilterTick.last_size <= filter_criteria["ltpTo"])                                 
+    # Cumulative
+    # VolumeDelta
+    # VolumeDeltaValue
     query = query.filter(
         and_(*filters)
         ).order_by(FFFilterTick.id.desc()).limit(200)
@@ -112,84 +178,3 @@ def get_condition_rows(db:Session, from_date:dt, to_date: dt):
     ).order_by(desc(FFFilterTick.id))
     
     return query.all()
-
-# def get_last_n_ticks(db: Session, condition:dict):
-#     filter_criteria=condition
-#     filters = []
-#     timeRange = []
-#     query = db.query(FFFilterTick)
-#     india_timezone = pytz.timezone("Asia/Kolkata")
-#     india_now = dt.now(india_timezone)
-#     start_of_day = dt(india_now.year, india_now.month, india_now.day)  # Start of today at 00:00:00
-#     end_of_day = start_of_day + timedelta(days=1) - timedelta(seconds=1)
-    
-#     # Add conditions only if the filter_criteria has valid values
-#     if filter_criteria.get("side", None) is not None:
-#         filters.append(FFFilterTick.tag == filter_criteria["side"])
-
-#     if filter_criteria.get("sweep", None):
-#         filters.append(FFFilterTick.aggressor == filter_criteria["sweep"])
-
-#     if filter_criteria.get("powerSweep", None):
-#         filters.append(FFFilterTick.power_sweep == filter_criteria["powerSweep"])
-
-#     if filter_criteria.get("block", None):
-#         filters.append(FFFilterTick.block1 == filter_criteria["block"])
-
-#     if filter_criteria.get("powerBlock", None):
-#         filters.append(FFFilterTick.power_block == filter_criteria["powerBlock"])
-
-#     if filter_criteria.get("optionType", None):
-#         filters.append(FFFilterTick.option_type == filter_criteria["optionType"])
-
-#     if filter_criteria.get("optionUnderlier", None):
-#         filters.append(FFFilterTick.underlier_symbol == filter_criteria["optionUnderlier"])
-
-#     if filter_criteria.get("volumeFrom", None) is not None:
-#         filters.append(FFFilterTick.volume >= filter_criteria["volumeFrom"])
-
-#     if filter_criteria.get("volumeTo", None) is not None:
-#         filters.append(FFFilterTick.volume <= filter_criteria["volumeTo"])
-
-#     if filter_criteria.get("oiFrom", None) is not None:
-#         filters.append(FFFilterTick.oi >= filter_criteria["oiFrom"])
-
-#     if filter_criteria.get("oiTo", None) is not None:
-#         filters.append(FFFilterTick.oi <= filter_criteria["oiTo"])
-
-#     if filter_criteria.get("itmFrom", None) is not None:
-#         filters.append(FFFilterTick.strike_difference >= filter_criteria["itmFrom"])
-
-#     if filter_criteria.get("itmTo", None) is not None:
-#         filters.append(FFFilterTick.strike_difference <= filter_criteria["itmTo"])
-        
-#     if filter_criteria.get("timeRangeFrom", None) is not None:
-#         timeRange.append(FFFilterTick.timestamp >= filter_criteria["timeRangeFrom"])
-        
-#     if filter_criteria.get("timeRangeFrom", None) == None:
-#         timeRange.append(FFFilterTick.timestamp >= start_of_day)
-        
-#     if filter_criteria.get("timeRangeTo", None) is not None:
-#         timeRange.append(FFFilterTick.timestamp >= filter_criteria["timeRangeTo"])
-        
-#     if filter_criteria.get("timeRangeTo", None) == None:
-#         timeRange.append(FFFilterTick.timestamp <= end_of_day)
-#     # Apply all the filters to the query
-    
-#     query = query.filter(and_(*timeRange))
-
-#     # Create subquery
-#     subquery = (query.order_by(desc(FFFilterTick.id)).subquery())
-#     alias = aliased(FFFilterTick, subquery)
-
-#     # Query results from alias
-#     results = db.query(alias).order_by(alias.id.asc()).all()
-#     return results
-    
-# def get_condition_rows(db:Session, from_date:dt, to_date: dt):
-#     query = db.query(FFFilterTick).filter(
-#         FFFilterTick.timestamp >= from_date,
-#         FFFilterTick.timestamp < to_date
-#     ).order_by(desc(FFFilterTick.id))
-    
-#     return query.all()
