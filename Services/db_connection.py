@@ -1,6 +1,6 @@
-from sqlalchemy import create_engine, Integer, Column, String, DateTime, Float, BIGINT, Double, Date, Index, text, INTEGER
+from sqlalchemy import create_engine, Integer, Column, String, DateTime, Float, BIGINT, Double, Date, Index, text, INTEGER, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, relationship
 from dependencies import pg_db, pg_host, pg_password, pg_port, pg_username
 
 Base = declarative_base()
@@ -101,18 +101,26 @@ class FFFilterTick(Base):
         Index('format_idx_timestamp', 'timestamp', postgresql_using='btree'),
     )
     
+    
+class FlowUser(Base):
+    __tablename__ = "flow_user"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String, unique=True, nullable=False)
+    
+    filtering_options = relationship("FilteringOptions", back_populates="flow_user", cascade="all, delete")
 class FilteringOptions(Base):
     __tablename__ = "filtering_options"
     
     id = Column(BIGINT, primary_key=True, autoincrement=True)
-    email = Column(String, nullable=False)
     title = Column(String, nullable=True)
     condition = Column(String, nullable=False)
-    createdAt = Column(DateTime, nullable=False)
-    updatedAt = Column(DateTime, nullable=True)
     creater = Column(String, nullable=True)
-    updater = Column(String, nullable=True)
     status = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey('flow_user.id', ondelete="CASCADE"))
+    
+    flow_user = relationship("FlowUser", back_populates="filtering_options")
+
     
 class SectorList(Base):
     __tablename__ = "sector"
