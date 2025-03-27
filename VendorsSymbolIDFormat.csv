@@ -1,0 +1,22 @@
+Vendor Name,NSECM,NSEFO,NSECD,BSECM,BSEFO,MCXFO
+5Paisa,N@C@ExchangeToken,N@D@ExchangeToken,N@U@ExchangeToken,B@C@ExchangeToken,B@D@ExchangeToken,M@D@ExchangeToken
+AngelOne,NSE@CM@ExchangeToken,NSE@FO@ExchangeToken,NSE@CD@ExchangeToken,BSE@CM@ExchangeToken,BSE@FO@ExchangeToken,MCX@COM@ExchangeToken
+Dhan,NSE_EQ@ExchangeToken@Normal,NSE_FNO@ExchangeToken@Normal,NSE_CURRENCY@ExchangeToken@Normal,BSE_EQ@ExchangeToken@Normal,BSE_FNO@ExchangeToken@Normal,MCX_COMM@ExchangeToken@Normal
+Fyers,10@10@ExchangeToken@Normal,10@11@ExchangeToken@Normal,10@12@ExchangeToken@Normal,12@10@ExchangeToken@Normal,12@11@ExchangeToken@Normal,11@20@ExchangeToken@Normal
+Gill Broking,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+HdfcSky,NSE_EQ@ExchangeToken@Normal,NSE_NFO@ExchangeToken@Normal,NSE_CDS@ExchangeToken@Normal,BSE_EQ@ExchangeToken@Normal,BSE_NFO@ExchangeToken@Normal,MCX_COM@ExchangeToken@Normal
+IIFL,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+IIFLSecurities,N@C@ExchangeToken,N@D@ExchangeToken,N@U@ExchangeToken,B@C@ExchangeToken,B@D@ExchangeToken,M@D@ExchangeToken
+Jainam Retail-XTS,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+Kotak Neo,NSE_CM@ExchangeToken@Normal,NSE_FO@ExchangeToken@Normal,CDE_FO@ExchangeToken@Normal,BSE_CM@ExchangeToken@Normal,BSE_FO@ExchangeToken@Normal,MCX_FO@ExchangeToken@Normal
+MasterTrust,NSE@CM@ExchangeToken,NSE@FO@ExchangeToken,NSE@CD@ExchangeToken,BSE@CM@ExchangeToken,BSE@FO@ExchangeToken,MCX@COM@ExchangeToken
+NirmalBang Securities,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+Pure Broking,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+RMoney XTS,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+RocketPlus,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+Shoonya,NSE@CM@ExchangeToken,NSE@FO@ExchangeToken,NSE@CD@ExchangeToken,BSE@CM@ExchangeToken,BSE@FO@ExchangeToken,MCX@COM@ExchangeToken
+Symphony Partner API,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+Symphony PRO,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+Symphony XTS,1@ExchangeToken,2@ExchangeToken,3@ExchangeToken,11@ExchangeToken,12@ExchangeToken,51@ExchangeToken
+TradeSmart,NSE@CM@ExchangeToken,NSE@FO@ExchangeToken,NSE@CD@ExchangeToken,BSE@CM@ExchangeToken,BSE@FO@ExchangeToken,MCX@COM@ExchangeToken
+Zerodha,NSE_CM@ExchangeToken@Normal,NSE_FO@ExchangeToken@Normal,NSE_CD@ExchangeToken@Normal,BSE_CM@ExchangeToken@Normal,BSE_FO@ExchangeToken@Normal,MCX_COM@ExchangeToken@Normal

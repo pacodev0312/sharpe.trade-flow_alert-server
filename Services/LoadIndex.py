@@ -1,6 +1,10 @@
 import os
 import pandas as pd
 
+PREDEFINED_WATCHLIST = {}
+
+INDEX_FILENAME = []
+
 def load_csv_files_to_pandas(base_directory=".", sub_directory="Index"):
     """
     Load all CSV files from the specified subdirectory and combine them into a single Pandas DataFrame.
@@ -27,8 +31,9 @@ def load_csv_files_to_pandas(base_directory=".", sub_directory="Index"):
                 csv_path = os.path.join(root, file)
                 try:
                     df = pd.read_csv(csv_path)
+                    INDEX_FILENAME.append(os.path.splitext(file)[0])
+                    PREDEFINED_WATCHLIST[os.path.splitext(file)[0]] = df.to_dict(orient="records")
                     dataframes.extend(df.to_dict(orient="records"))
-                    print(f"Loaded file: {file}, Shape: {df.shape}")
                 except Exception as e:
                     print(f"Error loading file {csv_path}: {e}")
 

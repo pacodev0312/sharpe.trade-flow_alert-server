@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
-from Services.LoadIndex import load_csv_files_to_pandas
+from Services.LoadIndex import load_csv_files_to_pandas, PREDEFINED_WATCHLIST, INDEX_FILENAME
 import os
+import pandas as pd
 
 load_dotenv()
 
@@ -16,4 +17,17 @@ pg_host=os.getenv("POSTGRES_HOST")
 pg_port=os.getenv("POSTGRES_PORT")
 pg_db=os.getenv("POSTGRES_DB")
 
-index_dict = load_csv_files_to_pandas()
+SECTOR_SYMBOLS = load_csv_files_to_pandas()
+
+df = pd.DataFrame(SECTOR_SYMBOLS)
+
+SECTOR_SYMBOLS_DF = df.drop_duplicates().set_index(["Symbol"]).dropna(subset=['Industry'])
+
+industries = [item["Industry"] for item in SECTOR_SYMBOLS]
+
+UNIQUE_INDUSTRIES = []
+seen = set()
+for industry in industries:
+    if industry not in seen:
+        seen.add(industry)
+        UNIQUE_INDUSTRIES.append(industry)

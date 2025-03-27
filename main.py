@@ -1,8 +1,11 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
+from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime as dt
 import asyncio
 from sqlalchemy import text
+from typing import Optional
+import uuid
 # region Monitoring
 # from prometheus_client import start_http_server, Gauge
 # import time
@@ -22,7 +25,7 @@ from sqlalchemy import text
 # endregion
 from Services.kafka_consumer import Consumerservice
 from dependencies import bootstrap_servers, sasl_mechanism, sasl_plain_password, sasl_plain_username, security_protocol
-from Routes import HistoricalRoute
+from Routes import HistoricalRoute, ScanListRoute, UtilRoute
 from Services.db_connection import Base, engine
 from Utils.functions import real_time_filter
 
@@ -43,56 +46,98 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(UtilRoute.router)
 app.include_router(HistoricalRoute.router)
+app.include_router(ScanListRoute.router)
 
 @app.get('/')
-def main():
+async def main():
     return {"message": "Server running on 8001"}
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: list[dict] = []  # Store active connections with websocket and condition
+        # Optimized storage with WebSocket ID as key
+        self.active_connections: dict[str, dict] = {}
+        self.lock = asyncio.Lock()
 
-    async def connect(self, websocket: WebSocket, condition: str):
+    async def connect(self, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections.append({"websocket": websocket, "condition": condition})
+        websocket_id = str(uuid.uuid4())
+        async with self.lock:
+            self.active_connections[websocket_id] = {"websocket": websocket, "condition": None}
+        print(f"WebSocket connected: {websocket_id}")
+        return websocket_id
 
-    async def disconnect(self, websocket: WebSocket):
-        self.active_connections = [
-            connection for connection in self.active_connections if connection["websocket"] != websocket
-        ]
-        try:
-            await websocket.close()
-        except Exception as e:
-            print(f"Error closing WebSocket: {e}")
-
-    async def broadcast(self, message: str):
-        for connection in self.active_connections[:]:  # Iterate over a copy of the list
-            websocket: WebSocket = connection["websocket"]
+    async def disconnect(self, websocket_id: str):
+        async with self.lock:
+            connection = self.active_connections.pop(websocket_id, None)
+        if connection:
             try:
-                message = real_time_filter(condition=connection["condition"], data=message)
-                if message is not None:
-                    await websocket.send_text(message)
+                await connection["websocket"].close()
+                print(f"WebSocket disconnected: {websocket_id}")
             except Exception as e:
-                print(f"Error sending message to {websocket}: {e}")
-                await self.disconnect(websocket)
+                print(f"Error closing WebSocket ({websocket_id}): {e}")
 
+    async def update_condition(self, websocket_id: str, condition: Optional[str]):
+        async with self.lock:
+            if websocket_id in self.active_connections:
+                self.active_connections[websocket_id]["condition"] = condition
+                print(f"Condition updated for {websocket_id}: {condition}")
+
+    async def broadcast_to_clients(self, message: str):
+        async with self.lock:
+            disconnected_ids = []
+            for websocket_id, conn_info in self.active_connections.items():
+                websocket = conn_info["websocket"]
+                condition = conn_info["condition"]
+
+                try:
+                    if websocket.application_state == WebSocketState.DISCONNECTED:
+                        disconnected_ids.append(websocket_id)
+                        continue
+                    # Uncomment and use this if filtering is re-enabled
+                    if condition is not None:
+                        filtered_message = real_time_filter(condition, message)
+                        if filtered_message:
+                            await websocket.send_text(filtered_message)
+
+                except WebSocketDisconnect:
+                    print(f"WebSocket disconnected during sending: {websocket_id}")
+                    disconnected_ids.append(websocket_id)
+                except Exception as e:
+                    print(f"Error sending message to {websocket_id}: {e}")
+                    disconnected_ids.append(websocket_id)
+
+            for websocket_id in disconnected_ids:
+                await self.disconnect(websocket_id)
 
 manager = ConnectionManager()
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, condition: str):
-    await manager.connect(websocket, condition)
+async def websocket_endpoint(websocket: WebSocket):
+    websocket_id = await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()  # Keep the connection alive
-            print(f"Received: {data}")
+            data = await websocket.receive_text()
+            print(f"Received data ({websocket_id}): {data}")
+
+            try:
+                data_json = json.loads(data)
+                action = data_json.get("action")
+
+                if action == "update_condition":
+                    condition = data_json.get("condition") or None
+                    await manager.update_condition(websocket_id, condition)
+
+            except json.JSONDecodeError:
+                print(f"Invalid JSON received ({websocket_id}).")
+
     except WebSocketDisconnect:
-        await manager.disconnect(websocket)
-        print("Client disconnected")
+        print(f"Client disconnected: {websocket_id}")
     except Exception as e:
-        print(f"Error in WebSocket connection: {e}")
-        await manager.disconnect(websocket)
+        print(f"Error in websocket handler ({websocket_id}): {e}")
+    finally:
+        await manager.disconnect(websocket_id)
         
 # Background task to send messages every second
 async def periodic_message_task():
@@ -106,91 +151,11 @@ async def periodic_message_task():
     )
     try:
         await test_consumer.start_consumer()
-        await test_consumer.consume_message(manager.broadcast)
-    except Exception as e:
-        print(f"Error in periodic message task: {e}")
-   
+        await test_consumer.consume_message(manager.broadcast_to_clients)
 
-# Run the periodic task in the background
+    except Exception as e:
+        print(f"Consumer error: {e}")
+
 @app.on_event("startup")
 async def startup_event():
-    # asyncio.create_task(monitor_server())
     asyncio.create_task(periodic_message_task())
-     
-      # try:
-    #     while True:
-    #         dt_now = dt.now()
-    #         timestamp = dt_now.strftime("%Y-%m-%dT%H:%M:%S")
-    #         data = {
-    #             "ltp": 83889.73,
-    #             "lot_size": 1,
-    #             "delta_volume": 0,
-    #             "exchange": "BSE",
-    #             "moneyness": "",
-    #             "sweep3": "BuySweep",
-    #             "power_sweep_volume": 0,
-    #             "power_block": "",
-    #             "is_contract_active": 1,
-    #             "bid": 0.0,
-    #             "symbol": "BSESNXT50",
-    #             "delta_volume_value": 0.0,
-    #             "tick_size": "0",
-    #             "aggressor": "Buy",
-    #             "sweep3_volume": 0,
-    #             "power_sweep_value": 0.0,
-    #             "power_block_volume": "",
-    #             "oi_build_up": "",
-    #             "timestamp": timestamp,
-    #             "bid_qty": 0,
-    #             "symbol_name": "BSESNXT50BSE",
-    #             "buy_volume": 0,
-    #             "expiry": "0001-01-01",
-    #             "sweep1": "BuySweep",
-    #             "sweep3_value": 0.0,
-    #             "block1": "",
-    #             "power_block_value": "",
-    #             "sentiment": "",
-    #             "ask": 0.0,
-    #             "exchange_token": 400000048,
-    #             "buy_value": 0.0,
-    #             "option_type": "IN",
-    #             "sweep1_volume": 0,
-    #             "sweep4": "BuySweep",
-    #             "block1_volume": "",
-    #             "unusal_prive_activity": "",
-    #             "tick_seq": 4445,
-    #             "ask_qty": 0,
-    #             "underlier_symbol": "BSESNXT50",
-    #             "sell_volume": 0,
-    #             "strike": 0,
-    #             "sweep1_value": 0.0,
-    #             "sweep4_volume": 0,
-    #             "block1_value": "",
-    #             "strike_difference": "",
-    #             "volume": 0,
-    #             "underlier_price": 83889.73,
-    #             "sell_value": 0,
-    #             "precision": "",
-    #             "sweep2": "BuySweep",
-    #             "sweep4_value": 0.0,
-    #             "block2": "",
-    #             "symbol_root": "",
-    #             "symbol_id": "400000048",
-    #             "oi": 0,
-    #             "trade_value": 0.0,
-    #             "symbol_type": "IN",
-    #             "oi_change": 0,
-    #             "sweep2_volume": 0,
-    #             "power_sweep": "BuySweep",
-    #             "block2_volume": "",
-    #             "local_id": "BSESNXT50_IN_BSE",
-    #             "last_size": 0,
-    #             "tag": "Sell",
-    #             "sweep2_value": 0.0,
-    #             "block2_value": ""
-    #         },
-    #         await manager.broadcast(message=json.dumps(data))
-    #         await asyncio.sleep(1)
-    # except Exception as ex:
-    #     print(ex)
-    
