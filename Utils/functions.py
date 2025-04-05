@@ -517,5 +517,4 @@ def real_time_filter(condition:str, data_dict):
                 return None
             if op == "Equal" and res_model.change_percent != value:
                 return None   
-    result = json.dumps(res_model.to_dict())
-    return result
+    return res_model.to_dict()

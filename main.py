@@ -23,7 +23,7 @@ import uuid
 
 # monitor_server()
 # endregion
-from Services.kafka_consumer import Consumerservice
+from Services.kafka_consumer import ConsumerService
 from dependencies import bootstrap_servers, sasl_mechanism, sasl_plain_password, sasl_plain_username, security_protocol
 from Routes import HistoricalRoute, ScanListRoute, UtilRoute
 from Services.db_connection import Base, engine
@@ -84,33 +84,46 @@ class ConnectionManager:
                 self.active_connections[websocket_id]["condition"] = condition
                 print(f"Condition updated for {websocket_id}: {condition}")
 
-    async def broadcast_to_clients(self, message: str):
+    async def broadcast_to_clients(self, ticks):
+        # 1) Snapshot the current connections under the lock.
         async with self.lock:
-            disconnected_ids = []
-            for websocket_id, conn_info in self.active_connections.items():
-                websocket = conn_info["websocket"]
-                condition = conn_info["condition"]
+            connections_snapshot = list(self.active_connections.items())
 
-                try:
-                    if websocket.application_state == WebSocketState.DISCONNECTED:
-                        disconnected_ids.append(websocket_id)
-                        continue
-                    # Uncomment and use this if filtering is re-enabled
-                    if condition is not None:
-                        filtered_message = real_time_filter(condition, message)
-                        if filtered_message:
-                            await websocket.send_text(filtered_message)
+        disconnected_ids = []
 
-                except WebSocketDisconnect:
-                    print(f"WebSocket disconnected during sending: {websocket_id}")
+        # 2) For each connection, try to send data outside the lock
+        for websocket_id, conn_info in connections_snapshot:
+            websocket = conn_info["websocket"]
+            condition = conn_info["condition"]
+
+            try:
+                if websocket.application_state == WebSocketState.DISCONNECTED:
                     disconnected_ids.append(websocket_id)
-                except Exception as e:
-                    print(f"Error sending message to {websocket_id}: {e}")
-                    disconnected_ids.append(websocket_id)
+                    continue
 
+                # filter if needed
+                if condition is not None:
+                    filtered_messages = []
+                    for tick in ticks:
+                        filtered = real_time_filter(condition, tick)
+                        if filtered:
+                            filtered_messages.append(filtered)
+
+                    if filtered_messages:
+                        print(filtered_messages[0]['timestamp'])
+                        await websocket.send_text(json.dumps(filtered_messages))
+
+            except WebSocketDisconnect:
+                disconnected_ids.append(websocket_id)
+            except Exception as e:
+                print(f"Error sending message to {websocket_id}: {e}")
+                disconnected_ids.append(websocket_id)
+
+        # 3) Disconnect any broken websockets under the lock again
+        async with self.lock:
             for websocket_id in disconnected_ids:
                 await self.disconnect(websocket_id)
-
+                
 manager = ConnectionManager()
 
 @app.websocket("/ws")
@@ -139,23 +152,26 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         await manager.disconnect(websocket_id)
         
-# Background task to send messages every second
-async def periodic_message_task():
-    test_consumer = Consumerservice(
+@app.on_event("startup")
+async def startup_event():
+    # 'asyncio.get_running_loop()' gives us the currently running loop
+    loop = asyncio.get_running_loop()
+
+    test_consumer = ConsumerService(
         topic_name="feed_tick_trade_format",
         bootstrap_servers=bootstrap_servers,
         security_protocol=security_protocol,
         sasl_mechanism=sasl_mechanism,
         sasl_plain_username=sasl_plain_username,
         sasl_plain_password=sasl_plain_password,
+        loop=loop,  # pass the loop here!
     )
-    try:
-        await test_consumer.start_consumer()
-        await test_consumer.consume_message(manager.broadcast_to_clients)
 
-    except Exception as e:
-        print(f"Consumer error: {e}")
+    # Now we run the consumer in a background thread or in concurrency with the main loop
+    asyncio.create_task(run_consumer(test_consumer))
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(periodic_message_task())
+async def run_consumer(consumer_service: ConsumerService):
+    # Just run it in a thread so it doesn't block
+    # (though you could keep it in the main thread if you prefer)
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, consumer_service.consume_message, manager.broadcast_to_clients)

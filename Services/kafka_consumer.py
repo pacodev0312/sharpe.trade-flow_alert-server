@@ -1,43 +1,87 @@
-# region imports dependencies
-from aiokafka import AIOKafkaConsumer
+import asyncio
+import logging
+from kafka import KafkaConsumer
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 import json
-import asyncio
 
-# endregion
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s")
 
-# region consumer_service
-class Consumerservice:
-    def __init__(self, topic_name, bootstrap_servers, sasl_mechanism, security_protocol, sasl_plain_username, sasl_plain_password, group_id=None, auto_offset_reset='latest'):
-        self.topic_name = topic_name
-        self.bootstrap_servers = bootstrap_servers
-        self.sasl_mechanism = sasl_mechanism
-        self.security_protocol = security_protocol
-        self.sasl_plain_username = sasl_plain_username
-        self.sasl_plain_password = sasl_plain_password
-        self.group_id = group_id
-        self.auto_offset_reset = auto_offset_reset
-        self.consumer = None
+class ConsumerService:
+    def __init__(
+        self,
+        topic_name: str,
+        bootstrap_servers: str,
+        sasl_mechanism: str,
+        security_protocol: str,
+        sasl_plain_username: str,
+        sasl_plain_password: str,
+        loop: asyncio.AbstractEventLoop,
+        group_id: str = None,
+        auto_offset_reset: str = "latest"
+    ):
+        """
+        Store 'loop' so we can schedule coroutines on it from our sync context.
+        """
+        self.loop = loop
+        self.running = True
+        self.executor = ThreadPoolExecutor(max_workers=10)
 
-    async def start_consumer(self):
-        self.consumer = AIOKafkaConsumer(
-            self.topic_name,
-            bootstrap_servers=self.bootstrap_servers,
-            security_protocol=self.security_protocol,
-            sasl_mechanism=self.sasl_mechanism,
-            sasl_plain_username=self.sasl_plain_username,
-            sasl_plain_password=self.sasl_plain_password,
-            group_id=self.group_id,
-            auto_offset_reset=self.auto_offset_reset,
-            value_deserializer=lambda x: json.loads(x.decode("utf-8"))
+        self.consumer = KafkaConsumer(
+            topic_name,
+            bootstrap_servers=bootstrap_servers,
+            sasl_mechanism=sasl_mechanism,
+            security_protocol=security_protocol,
+            sasl_plain_username=sasl_plain_username,
+            sasl_plain_password=sasl_plain_password,
+            group_id=group_id,
+            auto_offset_reset=auto_offset_reset,
+            enable_auto_commit=True,
+            max_poll_interval_ms=300000,
+            session_timeout_ms=30000,
+            fetch_max_wait_ms=500,
+            max_poll_records=500,
+            fetch_max_bytes=10 * 1024 * 1024,
+            max_partition_fetch_bytes=5 * 1024 * 1024,
+            value_deserializer=self._json_deserializer
         )
-        await self.consumer.start()
-        
-    async def consume_message(self, func: Callable):
-        try:
-            async for message in self.consumer:
-                asyncio.create_task(func(message.value))
-        finally:
-            await self.consumer.stop()
 
-# endregion
+    @staticmethod
+    def _json_deserializer(data: bytes):
+        try:
+            return json.loads(data.decode("utf-8"))
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decode error: {e}")
+            return None
+
+    def consume_message(self, func: Callable):
+        """
+        This is still a synchronous method, but we can schedule
+        async calls on the event loop when we get messages.
+        """
+        logging.info("Kafka consumer started.")
+        try:
+            while self.running:
+                records = self.consumer.poll(timeout_ms=500, max_records=500)
+                for _, msgs in records.items():
+                    for message in msgs:
+                        if message.value is not None:
+                            # Instead of calling func(...) directly (which is async),
+                            # we schedule it on the event loop:
+                            future = asyncio.run_coroutine_threadsafe(
+                                func(message.value),  # 'func' must be async
+                                self.loop
+                            )
+                            # Optionally handle 'future' if you want to track results
+        except Exception as e:
+            logging.error(f"Consumer error: {e}")
+        finally:
+            self.stop()
+            logging.info("Kafka consumer stopped.")
+
+    def stop(self):
+        self.running = False
+        self.executor.shutdown(wait=True)
+        if self.consumer:
+            self.consumer.close()
+            logging.info("Kafka consumer closed successfully.")
