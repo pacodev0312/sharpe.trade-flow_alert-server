@@ -50,7 +50,7 @@ def real_time_filter(condition:str, data_dict):
         if data_dict["expiry"] == "0001-01-01T00:00:00":
             res_model.dte = ""
         else:
-            expiry_date = dt.strptime(data_dict["expiry"], "%Y-%m-%dT%H:%M:%S")
+            expiry_date = dt.strptime(data_dict["expiry"], "%Y-%m-%dT%H:%M:%Sz")
             today = dt.today()
             res_model.dte = (expiry_date.date() - today.date()).days
     else:
@@ -100,23 +100,30 @@ def real_time_filter(condition:str, data_dict):
         res_model.oi_change_percent = 0
     # flags
     res_model.flags = []
-    if data_dict["sweep1"] == "BuySweep" or data_dict["sweep2"] == "BuySweep" or data_dict["sweep3"] == "BuySweep":
+    sweep1 = data_dict.get('sweep1', None)
+    sweep2 = data_dict.get('sweep2', None)
+    sweep3 = data_dict.get('sweep3', None)
+    power_sweep = data_dict.get('power_sweep', None)
+    block1 = data_dict.get('block1', None)
+    block2 = data_dict.get('block2', None)
+    power_block = data_dict.get('block2', None)
+    if sweep1 == "BuySweep" or sweep2 == "BuySweep" or sweep3 == "BuySweep":
         res_model.flags.append("BuySweep")
-    if data_dict["sweep1"] == "SellSweep" or data_dict["sweep2"] == "SellSweep" or data_dict["sweep3"] == "SellSweep":
+    if sweep1 == "SellSweep" or sweep2 == "SellSweep" or sweep3 == "SellSweep":
         res_model.flags.append("SellSweep")
-    if data_dict["power_sweep"] is not None:
+    if power_sweep is not None:
         res_model.flags.append(f"{res_model.side}PowerSweep")
-    if data_dict["block1"] is not None or data_dict["block2"]:
+    if block1 is not None or block2:
         res_model.flags.append(f"{res_model.side}Block")
-    if data_dict["power_block"] is not None:
+    if power_block is not None:
         res_model.flags.append(f"{res_model.side}PowerBlock")
-    res_model.sweep1 = data_dict["sweep1"]
-    res_model.sweep2 = data_dict["sweep2"]
-    res_model.sweep3 = data_dict["sweep3"]
-    res_model.power_sweep = data_dict["power_sweep"]
-    res_model.block1 = data_dict["block1"]
-    res_model.block2 = data_dict["block2"]
-    res_model.power_block = data_dict["power_block"]
+    res_model.sweep1 = sweep1
+    res_model.sweep2 = sweep2
+    res_model.sweep3 = sweep3
+    res_model.power_sweep = power_sweep
+    res_model.block1 = block1
+    res_model.block2 = block2
+    res_model.power_block = power_block
     res_model.sector=""
     if res_model.symbol in SECTOR_SYMBOLS_DF.index:
         sector = SECTOR_SYMBOLS_DF.loc[res_model.symbol]
@@ -328,17 +335,17 @@ def real_time_filter(condition:str, data_dict):
 
     if filter_criteria.get("powerSweep"):
         power_sweeps = {f"{item}Sweep" for item in filter_criteria["powerSweep"].split("+")}
-        if data_dict["power_sweep"] in power_sweeps:
+        if power_sweep in power_sweeps:
             conditions_met = True
 
     if filter_criteria.get("block"):
         blocks = set(filter_criteria["block"].split("+"))
-        if res_model.side in blocks and (data_dict["block1"] == "Block" or data_dict["block2"] == "Block"):
+        if res_model.side in blocks and (block1 == "Block" or block2 == "Block"):
             conditions_met = True
 
     if filter_criteria.get("powerBlock"):
         power_blocks = set(filter_criteria["powerBlock"].split("+"))
-        if res_model.side in power_blocks and data_dict["power_block"] == "Block":
+        if res_model.side in power_blocks and power_block == "Block":
             conditions_met = True
 
     if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or filter_criteria.get("block") or filter_criteria.get("powerBlock"):

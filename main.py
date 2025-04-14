@@ -84,7 +84,7 @@ class ConnectionManager:
                 self.active_connections[websocket_id]["condition"] = condition
                 print(f"Condition updated for {websocket_id}: {condition}")
 
-    async def broadcast_to_clients(self, ticks):
+    async def broadcast_to_clients(self, tick):
         # 1) Snapshot the current connections under the lock.
         async with self.lock:
             connections_snapshot = list(self.active_connections.items())
@@ -103,15 +103,9 @@ class ConnectionManager:
 
                 # filter if needed
                 if condition is not None:
-                    filtered_messages = []
-                    for tick in ticks:
                         filtered = real_time_filter(condition, tick)
                         if filtered:
-                            filtered_messages.append(filtered)
-
-                    if filtered_messages:
-                        print(filtered_messages[0]['timestamp'])
-                        await websocket.send_text(json.dumps(filtered_messages))
+                            await websocket.send_text(json.dumps(filtered))
 
             except WebSocketDisconnect:
                 disconnected_ids.append(websocket_id)

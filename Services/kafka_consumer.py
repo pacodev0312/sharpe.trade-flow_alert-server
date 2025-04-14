@@ -41,8 +41,8 @@ class ConsumerService:
             session_timeout_ms=30000,
             fetch_max_wait_ms=500,
             max_poll_records=500,
-            fetch_max_bytes=10 * 1024 * 1024,
-            max_partition_fetch_bytes=5 * 1024 * 1024,
+            fetch_max_bytes=32 * 1024,
+            max_partition_fetch_bytes=4 * 1024,
             value_deserializer=self._json_deserializer
         )
 
@@ -62,7 +62,7 @@ class ConsumerService:
         logging.info("Kafka consumer started.")
         try:
             while self.running:
-                records = self.consumer.poll(timeout_ms=500, max_records=500)
+                records = self.consumer.poll(timeout_ms=5, max_records=1500)
                 for _, msgs in records.items():
                     for message in msgs:
                         if message.value is not None:
