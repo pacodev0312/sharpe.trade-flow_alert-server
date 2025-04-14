@@ -237,6 +237,17 @@ def real_time_filter(condition:str, data_dict):
         underlier_tokens = [int(token) for token in underlier_tokens_raw]
         if res_model.underlier_token not in underlier_tokens:
             flg_underlier_filter = True
+    if filter_criteria.get("underWatchlist", None):
+        underliers = []
+        pre_watchlists = []
+        no_pre_watchlist = filter_criteria.get("underWatchlist").split("+")
+        for index in no_pre_watchlist:
+            pre_watchlists.append(INDEX_FILENAME[int(index)])
+        for pre_watchlist in pre_watchlists:
+            for item in PREDEFINED_WATCHLIST[pre_watchlist]:
+                underliers.append(item["Symbol"])
+        if res_model.underlier_symbol not in underliers:
+            return None
     if flg_underlier_filter:
         return None
     # Products
