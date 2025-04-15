@@ -60,32 +60,43 @@ class ConnectionManager:
         self.lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        websocket_id = str(uuid.uuid4())
-        async with self.lock:
-            self.active_connections[websocket_id] = {"websocket": websocket, "condition": None}
-        print(f"WebSocket connected: {websocket_id}")
-        return websocket_id
+        try:
+            await websocket.accept()
+            websocket_id = str(uuid.uuid4())
+            async with self.lock:
+                self.active_connections[websocket_id] = {"websocket": websocket, "condition": None}
+            print(f"WebSocket connected: {websocket_id}")
+            return websocket_id
+        except Exception as e:
+            print(f"Error during WebSocket connect: {e}")
+            return None
 
     async def disconnect(self, websocket_id: str):
-        async with self.lock:
-            connection = self.active_connections.pop(websocket_id, None)
-        if connection:
-            try:
+        try:
+            async with self.lock:
+                connection = self.active_connections.pop(websocket_id, None)
+            if connection:
                 await connection["websocket"].close()
                 print(f"WebSocket disconnected: {websocket_id}")
-            except Exception as e:
-                print(f"Error closing WebSocket ({websocket_id}): {e}")
+        except Exception as e:
+            print(f"Error closing WebSocket ({websocket_id}): {e}")
 
     async def update_condition(self, websocket_id: str, condition: Optional[str]):
-        async with self.lock:
-            if websocket_id in self.active_connections:
-                self.active_connections[websocket_id]["condition"] = condition
-                print(f"Condition updated for {websocket_id}: {condition}")
+        try:
+            async with self.lock:
+                if websocket_id in self.active_connections:
+                    self.active_connections[websocket_id]["condition"] = condition
+                    print(f"Condition updated for {websocket_id}: {condition}")
+        except Exception as e:
+            print(f"Error updating condition for {websocket_id}: {e}")
 
     async def broadcast_to_clients(self, tick):
-        async with self.lock:
-            connections_snapshot = list(self.active_connections.items())
+        try:
+            async with self.lock:
+                connections_snapshot = list(self.active_connections.items())
+        except Exception as e:
+            print(f"Error accessing connections: {e}")
+            return
 
         disconnected_ids = []
 
@@ -102,16 +113,14 @@ class ConnectionManager:
                     filtered = real_time_filter(condition, tick)
                     if filtered:
                         await websocket.send_text(json.dumps(filtered))
-
             except WebSocketDisconnect:
                 disconnected_ids.append(websocket_id)
             except Exception as e:
                 print(f"Error sending message to {websocket_id}: {e}")
                 disconnected_ids.append(websocket_id)
 
-        async with self.lock:
-            for websocket_id in disconnected_ids:
-                await self.disconnect(websocket_id)
+        for websocket_id in disconnected_ids:
+            await self.disconnect(websocket_id)
 
 manager = ConnectionManager()
 tick_queue = asyncio.Queue(maxsize=50000)
@@ -119,11 +128,13 @@ tick_queue = asyncio.Queue(maxsize=50000)
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     websocket_id = await manager.connect(websocket)
+    if websocket_id is None:
+        return
     try:
         while True:
-            data = await websocket.receive_text()
-            print(f"Received data ({websocket_id}): {data}")
             try:
+                data = await websocket.receive_text()
+                print(f"Received data ({websocket_id}): {data}")
                 data_json = json.loads(data)
                 action = data_json.get("action")
                 if action == "update_condition":
@@ -131,10 +142,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     await manager.update_condition(websocket_id, condition)
             except json.JSONDecodeError:
                 print(f"Invalid JSON received ({websocket_id}).")
-    except WebSocketDisconnect:
-        print(f"Client disconnected: {websocket_id}")
-    except Exception as e:
-        print(f"Error in websocket handler ({websocket_id}): {e}")
+            except WebSocketDisconnect:
+                print(f"WebSocket disconnect signal received: {websocket_id}")
+                break
+            except Exception as e:
+                print(f"Error in receive loop ({websocket_id}): {e}")
     finally:
         await manager.disconnect(websocket_id)
 
