@@ -6,30 +6,13 @@ import asyncio
 from sqlalchemy import text
 from typing import Optional
 import uuid
-# region Monitoring
-# from prometheus_client import start_http_server, Gauge
-# import time
+import json
 
-# # Create a metric to track server uptime
-# server_up = Gauge('server_status', 'Server running status (1=up, 0=down)')
-
-# async def monitor_server():
-#     while True:
-#         server_up.set(1)  # Set to 1 if the server is running
-#         await asyncio.sleep(5)
-
-# # Start a separate metrics server
-# start_http_server(9100)  # Runs a Prometheus-compatible metrics server
-
-# monitor_server()
-# endregion
 from Services.kafka_consumer import ConsumerService
 from dependencies import bootstrap_servers, sasl_mechanism, sasl_plain_password, sasl_plain_username, security_protocol
 from Routes import HistoricalRoute, ScanListRoute, UtilRoute
 from Services.db_connection import Base, engine
 from Utils.functions import real_time_filter
-
-import json
 
 Base.metadata.create_all(engine)
 
@@ -91,7 +74,7 @@ class ConnectionManager:
 
         disconnected_ids = []
 
-        # 2) For each connection, try to send data outside the lock
+        # 2) Process each connection outside the lock.
         for websocket_id, conn_info in connections_snapshot:
             websocket = conn_info["websocket"]
             condition = conn_info["condition"]
@@ -101,23 +84,21 @@ class ConnectionManager:
                     disconnected_ids.append(websocket_id)
                     continue
 
-                # filter if needed
+                # Filter if needed
                 if condition is not None:
-                        filtered = real_time_filter(condition, tick)
-                        if filtered:
-                            await websocket.send_text(json.dumps(filtered))
-
+                    filtered = real_time_filter(condition, tick)
+                    if filtered:
+                        await websocket.send_text(json.dumps(filtered))
             except WebSocketDisconnect:
                 disconnected_ids.append(websocket_id)
             except Exception as e:
                 print(f"Error sending message to {websocket_id}: {e}")
                 disconnected_ids.append(websocket_id)
 
-        # 3) Disconnect any broken websockets under the lock again
-        async with self.lock:
-            for websocket_id in disconnected_ids:
-                await self.disconnect(websocket_id)
-                
+        # 3) Disconnect any broken websockets outside the lock.
+        for websocket_id in disconnected_ids:
+            await self.disconnect(websocket_id)
+
 manager = ConnectionManager()
 
 @app.websocket("/ws")
@@ -145,10 +126,9 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"Error in websocket handler ({websocket_id}): {e}")
     finally:
         await manager.disconnect(websocket_id)
-        
+
 @app.on_event("startup")
 async def startup_event():
-    # 'asyncio.get_running_loop()' gives us the currently running loop
     loop = asyncio.get_running_loop()
 
     test_consumer = ConsumerService(
@@ -158,14 +138,11 @@ async def startup_event():
         sasl_mechanism=sasl_mechanism,
         sasl_plain_username=sasl_plain_username,
         sasl_plain_password=sasl_plain_password,
-        loop=loop,  # pass the loop here!
+        loop=loop,
     )
 
-    # Now we run the consumer in a background thread or in concurrency with the main loop
     asyncio.create_task(run_consumer(test_consumer))
 
 async def run_consumer(consumer_service: ConsumerService):
-    # Just run it in a thread so it doesn't block
-    # (though you could keep it in the main thread if you prefer)
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, consumer_service.consume_message, manager.broadcast_to_clients)
