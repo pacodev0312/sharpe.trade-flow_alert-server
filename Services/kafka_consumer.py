@@ -4,6 +4,7 @@ from kafka import KafkaConsumer
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 import json
+import time
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s")
 
@@ -20,9 +21,6 @@ class ConsumerService:
         group_id: str = None,
         auto_offset_reset: str = "latest"
     ):
-        """
-        Store 'loop' so we can schedule coroutines on it from our sync context.
-        """
         self.loop = loop
         self.running = True
         self.executor = ThreadPoolExecutor(max_workers=10)
@@ -55,29 +53,20 @@ class ConsumerService:
             return None
 
     def consume_message(self, func: Callable):
-        """
-        This is still a synchronous method, but we can schedule
-        async calls on the event loop when we get messages.
-        """
         logging.info("Kafka consumer started.")
-        try:
-            while self.running:
+        while self.running:
+            try:
                 records = self.consumer.poll(timeout_ms=5, max_records=1500)
                 for _, msgs in records.items():
                     for message in msgs:
                         if message.value is not None:
-                            # Instead of calling func(...) directly (which is async),
-                            # we schedule it on the event loop:
-                            future = asyncio.run_coroutine_threadsafe(
-                                func(message.value),  # 'func' must be async
-                                self.loop
-                            )
-                            # Optionally handle 'future' if you want to track results
-        except Exception as e:
-            logging.error(f"Consumer error: {e}")
-        finally:
-            self.stop()
-            logging.info("Kafka consumer stopped.")
+                            # Schedule the async function to process the message.
+                            asyncio.run_coroutine_threadsafe(func(message.value), self.loop)
+            except Exception as e:
+                logging.error(f"Consumer error: {e}")
+                # Sleep briefly before continuing to prevent a tight error loop.
+                time.sleep(1)
+        logging.info("Kafka consumer stopped.")
 
     def stop(self):
         self.running = False
