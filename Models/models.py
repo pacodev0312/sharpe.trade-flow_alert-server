@@ -17,6 +17,7 @@ class FilteringResponseModel:
     atp: float
     ltq:int
     side:str
+    aggressor: str
     flowtype:str
     flags: list
     volume:int
@@ -61,6 +62,7 @@ class FilteringResponseModel:
             "atp": self.atp,
             "ltq": self.ltq,
             "side": self.side,
+            "aggressor": self.aggressor,
             "flowtype": self.flowtype,
             "volume": self.volume,
             "trd_val": self.trd_val,

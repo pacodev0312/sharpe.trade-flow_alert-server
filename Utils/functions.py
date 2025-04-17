@@ -65,6 +65,8 @@ def real_time_filter(condition:str, data_dict):
     res_model.ltq = data_dict["last_size"]
     # side
     res_model.side = data_dict["tag"]
+    # aggressor
+    res_model.aggressor = data_dict["aggressor"]
     # flowType
     stock_list = ["Equity", "Index"]
     if res_model.side == "Buy" and res_model.products == "Futures":
