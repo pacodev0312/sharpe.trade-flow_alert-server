@@ -88,7 +88,7 @@ class FilteringResponseModel:
             "change": self.change,
             "change_percent": self.change_percent,
             "token": self.token,
-            "lot_size": self.token,
+            "lot_size": self.lot_size,
             "exchange": self.exchange,
             "underlier_token": self.underlier_token
         }
