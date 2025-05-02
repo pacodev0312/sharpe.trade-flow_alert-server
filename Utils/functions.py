@@ -105,27 +105,56 @@ def real_time_filter(condition:str, data_dict):
     sweep1 = data_dict.get('sweep1', None)
     sweep2 = data_dict.get('sweep2', None)
     sweep3 = data_dict.get('sweep3', None)
+    sweep4 = data_dict.get('sweep4', None)
     power_sweep = data_dict.get('power_sweep', None)
     block1 = data_dict.get('block1', None)
+    if block1 is not None:
+        block1 = f"{res_model.aggressor}{block1}"
     block2 = data_dict.get('block2', None)
+    if block2 is not None:
+        block2 = f"{res_model.aggressor}{block2}"
     power_block = data_dict.get('block2', None)
-    if sweep1 == "BuySweep" or sweep2 == "BuySweep" or sweep3 == "BuySweep":
-        res_model.flags.append("BuySweep")
-    if sweep1 == "SellSweep" or sweep2 == "SellSweep" or sweep3 == "SellSweep":
-        res_model.flags.append("SellSweep")
-    if power_sweep is not None:
-        res_model.flags.append(f"{res_model.side}PowerSweep")
-    if block1 is not None or block2:
-        res_model.flags.append(f"{res_model.side}Block")
     if power_block is not None:
-        res_model.flags.append(f"{res_model.side}PowerBlock")
-    res_model.sweep1 = sweep1
-    res_model.sweep2 = sweep2
-    res_model.sweep3 = sweep3
-    res_model.power_sweep = power_sweep
-    res_model.block1 = block1
-    res_model.block2 = block2
-    res_model.power_block = power_block
+        power_block = f"{res_model.aggressor}{power_block}"
+        
+    if power_sweep in ("BuyPowerSweep", "SellPowerSweep"):
+        res_model.selected_sweep = power_sweep
+        res_model.selected_sweep_number = 5
+    else:
+        sweep_map = {
+            4: sweep4,
+            3: sweep3,
+            2: sweep2,
+            1: sweep1
+        }
+
+        for number, sweep in sweep_map.items():
+            if sweep in ("BuySweep", "SellSweep"):
+                res_model.selected_sweep = sweep
+                res_model.selected_sweep_number = number
+                break
+        else:
+            res_model.selected_sweep = None
+            res_model.selected_sweep_number = None
+            
+    if power_block in ("BuyPowerBlock", "SellPowerBlock"):
+        res_model.selected_block = power_sweep
+        res_model.selected_block_number = 3
+    else:
+        block_map = {
+            2: block2,
+            1: block1
+        }
+
+        for number, block in block_map.items():
+            if block in ("BuyBlock", "SellBlock"):
+                res_model.selected_block = block
+                res_model.selected_block_number = number
+                break
+        else:
+            res_model.selected_block = None
+            res_model.selected_block_number = None
+            
     res_model.sector=""
     if res_model.symbol in SECTOR_SYMBOLS_DF.index:
         sector = SECTOR_SYMBOLS_DF.loc[res_model.symbol]
@@ -341,19 +370,40 @@ def real_time_filter(condition:str, data_dict):
     # Flags
     conditions_met = False  # Track if at least one condition is satisfied
 
-    if filter_criteria.get("sweep"):
-        sweeps = {f"{item}Sweep" for item in filter_criteria["sweep"].split("+")}
-        if any(data_dict[key] in sweeps for key in ["sweep1", "sweep2", "sweep3"]):
-            conditions_met = True
+    sweep_filter = filter_criteria.get("sweep")
+    sweep_star_filter = filter_criteria.get("sweepStar")
+    selected_sweep = res_model.selected_sweep
 
+    if sweep_filter:
+        allowed_sweeps = {f"{sweep}Sweep" for sweep in sweep_filter.split("+")}
+
+        if sweep_star_filter:
+            allowed_sweep_stars = sweep_star_filter.split("+")
+            selected_sweep_star = res_model.selected_sweep_number
+
+            if selected_sweep in allowed_sweeps and selected_sweep_star in allowed_sweep_stars:
+                conditions_met = True
+        else:
+            if selected_sweep in allowed_sweeps:
+                conditions_met = True
+                
     if filter_criteria.get("powerSweep"):
         power_sweeps = {f"{item}Sweep" for item in filter_criteria["powerSweep"].split("+")}
-        if power_sweep in power_sweeps:
+        if selected_sweep in power_sweeps:
             conditions_met = True
 
-    if filter_criteria.get("block"):
-        blocks = set(filter_criteria["block"].split("+"))
-        if res_model.side in blocks and (block1 == "Block" or block2 == "Block"):
+    block_filter = filter_criteria.get("block")
+    block_star_filter = filter_criteria.get("blockStar")
+    selected_block = res_model.selected_block
+
+    if block_filter:
+        allowed_blocks = {f"{block}Block" for block in block_filter.split("+")}
+        if block_star_filter:
+            allowed_block_stars = block_star_filter.split("+")
+            selected_block_star = res_model.selected_block_number
+            if selected_block in allowed_blocks and selected_block_star in allowed_block_stars:
+                conditions_met = True
+        if selected_block and f"{res_model.aggressor}{selected_block}" in allowed_blocks:
             conditions_met = True
 
     if filter_criteria.get("powerBlock"):
@@ -361,7 +411,7 @@ def real_time_filter(condition:str, data_dict):
         if res_model.side in power_blocks and power_block == "Block":
             conditions_met = True
 
-    if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or filter_criteria.get("block") or filter_criteria.get("powerBlock"):
+    if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or block_filter or filter_criteria.get("powerBlock"):
         if not conditions_met:
             return None
     
