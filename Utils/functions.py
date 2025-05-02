@@ -377,21 +377,21 @@ def real_time_filter(condition:str, data_dict):
     selected_sweep = res_model.selected_sweep
     selected_sweep_star = res_model.selected_sweep_number
 
-    if sweep_filter and sweep_star_filter:
-        # Case 3: Both filters provided
-        allowed_sweeps = {f"{sweep}Sweep" for sweep in sweep_filter.split("+")}
-        allowed_sweep_stars = sweep_star_filter.split("+")
-        if selected_sweep in allowed_sweeps and selected_sweep_star in allowed_sweep_stars:
-            conditions_met = True
+    if sweep_filter:
+        allowed_sweeps = {f"{sweep}Sweep" for sweep in sweep_filter.split("+") if sweep}
 
-    elif sweep_filter:
-        # Case 1: Only sweep filter
-        allowed_sweeps = {f"{sweep}Sweep" for sweep in sweep_filter.split("+")}
-        if selected_sweep in allowed_sweeps:
+        if sweep_star_filter:
+            # Case 3: Both filters provided
+            allowed_sweep_stars = sweep_star_filter.split("+")
+            if selected_sweep in allowed_sweeps and selected_sweep_star in allowed_sweep_stars:
+                conditions_met = True
+
+        elif selected_sweep in allowed_sweeps:
+            # Case 1: Only sweep filter
             conditions_met = True
 
     elif sweep_star_filter:
-        # Case 2: Only sweep star filter
+        # Case 2: Only sweep star filter (sweep filter missing or empty)
         allowed_sweep_stars = sweep_star_filter.split("+")
         if selected_sweep_star in allowed_sweep_stars:
             conditions_met = True
