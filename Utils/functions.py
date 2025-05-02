@@ -107,6 +107,8 @@ def real_time_filter(condition:str, data_dict):
     sweep3 = data_dict.get('sweep3', None)
     sweep4 = data_dict.get('sweep4', None)
     power_sweep = data_dict.get('power_sweep', None)
+    if power_sweep is not None:
+        power_sweep = f"Power{power_sweep}"
     block1 = data_dict.get('block1', None)
     if block1 is not None:
         block1 = f"{res_model.aggressor}{block1}"
@@ -115,9 +117,9 @@ def real_time_filter(condition:str, data_dict):
         block2 = f"{res_model.aggressor}{block2}"
     power_block = data_dict.get('block2', None)
     if power_block is not None:
-        power_block = f"{res_model.aggressor}{power_block}"
+        power_block = f"Power{res_model.aggressor}{power_block}"
         
-    if power_sweep in ("BuyPowerSweep", "SellPowerSweep"):
+    if power_sweep in ("PowerBuySweep", "PowerSellSweep"):
         res_model.selected_sweep = power_sweep
         res_model.selected_sweep_number = 5
     else:
@@ -137,7 +139,7 @@ def real_time_filter(condition:str, data_dict):
             res_model.selected_sweep = None
             res_model.selected_sweep_number = None
             
-    if power_block in ("BuyPowerBlock", "SellPowerBlock"):
+    if power_block in ("PowerBuyBlock", "PowerSellBlock"):
         res_model.selected_block = power_sweep
         res_model.selected_block_number = 3
     else:
@@ -395,7 +397,7 @@ def real_time_filter(condition:str, data_dict):
             conditions_met = True
                 
     if filter_criteria.get("powerSweep"):
-        power_sweeps = {f"{item}Sweep" for item in filter_criteria["powerSweep"].split("+")}
+        power_sweeps = {f"Power{item}Sweep" for item in filter_criteria["powerSweep"].split("+")}
         if selected_sweep in power_sweeps:
             conditions_met = True
 
@@ -405,28 +407,28 @@ def real_time_filter(condition:str, data_dict):
     selected_block_star = res_model.selected_block_number
     aggressor_block = f"{res_model.aggressor}{selected_block}" if res_model.aggressor and selected_block else None
 
-    if block_filter and block_star_filter:
-        # Case 3: Both filters provided
-        allowed_blocks = {f"{block}Block" for block in block_filter.split("+")}
-        allowed_block_stars = block_star_filter.split("+")
-        if (selected_block in allowed_blocks or aggressor_block in allowed_blocks) and selected_block_star in allowed_block_stars:
-            conditions_met = True
+    if block_filter:
+        allowed_blocks = {f"{block}Block" for block in block_filter.split("+") if block}
 
-    elif block_filter:
-        # Case 1: Only block filter
-        allowed_blocks = {f"{block}Block" for block in block_filter.split("+")}
-        if selected_block in allowed_blocks or aggressor_block in allowed_blocks:
+        if block_star_filter:
+            # Case 3: Both filters
+            allowed_block_stars = block_star_filter.split("+")
+            if (selected_block in allowed_blocks or aggressor_block in allowed_blocks) and selected_block_star in allowed_block_stars:
+                conditions_met = True
+
+        elif selected_block in allowed_blocks or aggressor_block in allowed_blocks:
+            # Case 1: Only block filter
             conditions_met = True
 
     elif block_star_filter:
-        # Case 2: Only block star filter
+        # Case 2: Only block star filter (block filter missing or empty)
         allowed_block_stars = block_star_filter.split("+")
         if selected_block_star in allowed_block_stars:
             conditions_met = True
 
     power_block_filter = filter_criteria.get("powerBlock")
     if power_block_filter:
-        allowed_power_blocks = {f"{block}PowerBlock" for block in block_filter.split("+")}
+        allowed_power_blocks = {f"Power{block}Block" for block in block_filter.split("+")}
         if res_model.selected_block in allowed_power_blocks:
             conditions_met = True
 
