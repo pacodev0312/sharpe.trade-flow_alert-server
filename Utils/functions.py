@@ -391,7 +391,6 @@ def real_time_filter(condition:str, data_dict):
             conditions_met = True
 
     elif sweep_star_filter:
-        print(sweep_star_filter)
         # Case 2: Only sweep star filter (sweep filter missing or empty)
         allowed_sweep_stars = sweep_star_filter.split("+")
         if str(selected_sweep_star) in allowed_sweep_stars:
@@ -430,11 +429,11 @@ def real_time_filter(condition:str, data_dict):
 
     power_block_filter = filter_criteria.get("powerBlock")
     if power_block_filter:
-        allowed_power_blocks = {f"Power{block}Block" for block in block_filter.split("+")}
+        allowed_power_blocks = {f"Power{block}Block" for block in power_block_filter.split("+")}
         if res_model.selected_block in allowed_power_blocks:
             conditions_met = True
 
-    if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or block_filter or filter_criteria.get("powerBlock"):
+    if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or block_filter or filter_criteria.get("powerBlock") or block_star_filter or sweep_star_filter:
         if not conditions_met:
             return None
     
