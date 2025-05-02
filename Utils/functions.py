@@ -383,7 +383,7 @@ def real_time_filter(condition:str, data_dict):
         if sweep_star_filter:
             # Case 3: Both filters provided
             allowed_sweep_stars = sweep_star_filter.split("+")
-            if selected_sweep in allowed_sweeps and selected_sweep_star in allowed_sweep_stars:
+            if selected_sweep in allowed_sweeps and str(selected_sweep_star) in allowed_sweep_stars:
                 conditions_met = True
 
         elif selected_sweep in allowed_sweeps:
@@ -393,7 +393,7 @@ def real_time_filter(condition:str, data_dict):
     elif sweep_star_filter:
         # Case 2: Only sweep star filter (sweep filter missing or empty)
         allowed_sweep_stars = sweep_star_filter.split("+")
-        if selected_sweep_star in allowed_sweep_stars:
+        if str(selected_sweep_star) in allowed_sweep_stars:
             conditions_met = True
                 
     if filter_criteria.get("powerSweep"):
@@ -413,7 +413,7 @@ def real_time_filter(condition:str, data_dict):
         if block_star_filter:
             # Case 3: Both filters
             allowed_block_stars = block_star_filter.split("+")
-            if (selected_block in allowed_blocks or aggressor_block in allowed_blocks) and selected_block_star in allowed_block_stars:
+            if (selected_block in allowed_blocks or aggressor_block in allowed_blocks) and str(selected_block_star) in allowed_block_stars:
                 conditions_met = True
 
         elif selected_block in allowed_blocks or aggressor_block in allowed_blocks:
@@ -423,7 +423,7 @@ def real_time_filter(condition:str, data_dict):
     elif block_star_filter:
         # Case 2: Only block star filter (block filter missing or empty)
         allowed_block_stars = block_star_filter.split("+")
-        if selected_block_star in allowed_block_stars:
+        if str(selected_block_star) in allowed_block_stars:
             conditions_met = True
 
     power_block_filter = filter_criteria.get("powerBlock")
