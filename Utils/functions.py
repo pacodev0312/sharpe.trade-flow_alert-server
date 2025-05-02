@@ -373,19 +373,26 @@ def real_time_filter(condition:str, data_dict):
     sweep_filter = filter_criteria.get("sweep")
     sweep_star_filter = filter_criteria.get("sweepStar")
     selected_sweep = res_model.selected_sweep
+    selected_sweep_star = res_model.selected_sweep_number
 
-    if sweep_filter:
+    if sweep_filter and sweep_star_filter:
+        # Case 3: Both filters provided
         allowed_sweeps = {f"{sweep}Sweep" for sweep in sweep_filter.split("+")}
+        allowed_sweep_stars = sweep_star_filter.split("+")
+        if selected_sweep in allowed_sweeps and selected_sweep_star in allowed_sweep_stars:
+            conditions_met = True
 
-        if sweep_star_filter:
-            allowed_sweep_stars = sweep_star_filter.split("+")
-            selected_sweep_star = res_model.selected_sweep_number
+    elif sweep_filter:
+        # Case 1: Only sweep filter
+        allowed_sweeps = {f"{sweep}Sweep" for sweep in sweep_filter.split("+")}
+        if selected_sweep in allowed_sweeps:
+            conditions_met = True
 
-            if selected_sweep in allowed_sweeps and selected_sweep_star in allowed_sweep_stars:
-                conditions_met = True
-        else:
-            if selected_sweep in allowed_sweeps:
-                conditions_met = True
+    elif sweep_star_filter:
+        # Case 2: Only sweep star filter
+        allowed_sweep_stars = sweep_star_filter.split("+")
+        if selected_sweep_star in allowed_sweep_stars:
+            conditions_met = True
                 
     if filter_criteria.get("powerSweep"):
         power_sweeps = {f"{item}Sweep" for item in filter_criteria["powerSweep"].split("+")}
@@ -395,20 +402,32 @@ def real_time_filter(condition:str, data_dict):
     block_filter = filter_criteria.get("block")
     block_star_filter = filter_criteria.get("blockStar")
     selected_block = res_model.selected_block
+    selected_block_star = res_model.selected_block_number
+    aggressor_block = f"{res_model.aggressor}{selected_block}" if res_model.aggressor and selected_block else None
 
-    if block_filter:
+    if block_filter and block_star_filter:
+        # Case 3: Both filters provided
         allowed_blocks = {f"{block}Block" for block in block_filter.split("+")}
-        if block_star_filter:
-            allowed_block_stars = block_star_filter.split("+")
-            selected_block_star = res_model.selected_block_number
-            if selected_block in allowed_blocks and selected_block_star in allowed_block_stars:
-                conditions_met = True
-        if selected_block and f"{res_model.aggressor}{selected_block}" in allowed_blocks:
+        allowed_block_stars = block_star_filter.split("+")
+        if (selected_block in allowed_blocks or aggressor_block in allowed_blocks) and selected_block_star in allowed_block_stars:
             conditions_met = True
 
-    if filter_criteria.get("powerBlock"):
-        power_blocks = set(filter_criteria["powerBlock"].split("+"))
-        if res_model.side in power_blocks and power_block == "Block":
+    elif block_filter:
+        # Case 1: Only block filter
+        allowed_blocks = {f"{block}Block" for block in block_filter.split("+")}
+        if selected_block in allowed_blocks or aggressor_block in allowed_blocks:
+            conditions_met = True
+
+    elif block_star_filter:
+        # Case 2: Only block star filter
+        allowed_block_stars = block_star_filter.split("+")
+        if selected_block_star in allowed_block_stars:
+            conditions_met = True
+
+    power_block_filter = filter_criteria.get("powerBlock")
+    if power_block_filter:
+        allowed_power_blocks = {f"{block}PowerBlock" for block in block_filter.split("+")}
+        if res_model.selected_block in allowed_power_blocks:
             conditions_met = True
 
     if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or block_filter or filter_criteria.get("powerBlock"):
