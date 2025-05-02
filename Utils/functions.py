@@ -377,7 +377,7 @@ def real_time_filter(condition:str, data_dict):
     selected_sweep = res_model.selected_sweep
     selected_sweep_star = res_model.selected_sweep_number
 
-    if sweep_filter:
+    if sweep_filter and sweep_filter is not "":
         allowed_sweeps = {f"{sweep}Sweep" for sweep in sweep_filter.split("+") if sweep}
 
         if sweep_star_filter:
@@ -407,7 +407,7 @@ def real_time_filter(condition:str, data_dict):
     selected_block_star = res_model.selected_block_number
     aggressor_block = f"{res_model.aggressor}{selected_block}" if res_model.aggressor and selected_block else None
 
-    if block_filter:
+    if block_filter and block_filter is not "":
         allowed_blocks = {f"{block}Block" for block in block_filter.split("+") if block}
 
         if block_star_filter:
