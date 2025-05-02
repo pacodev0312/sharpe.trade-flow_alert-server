@@ -33,13 +33,10 @@ class FilteringResponseModel:
     vol_delta:int
     vol_delta_value:float
     cumulative_delta:int
-    sweep1: str
-    sweep2: str
-    sweep3: str
-    power_sweep: str
-    block1: str
-    block2: str
-    power_block: str
+    selected_sweep: str
+    selected_sweep_number: int
+    selected_block: str
+    selected_block_number: int
     sector: str
     change: float
     change_percent: float
@@ -77,13 +74,10 @@ class FilteringResponseModel:
             "vol_delta": self.vol_delta,
             "vol_delta_value": self.vol_delta_value,
             "cumulative_delta": self.cumulative_delta,
-            "sweep1": self.sweep1,
-            "sweep2": self.sweep2,
-            "sweep3": self.sweep3,
-            "power_sweep": self.power_sweep,
-            "block1": self.block1,
-            "block2": self.block2,
-            "power_block": self.power_block,
+            "selected_sweep": self.selected_sweep,
+            "selected_sweep_number": self.selected_sweep_number,
+            "selected_block": self.selected_block,
+            "selected_block_number": self.selected_block_number,
             "sector": self.sector,
             "change": self.change,
             "change_percent": self.change_percent,
