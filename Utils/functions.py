@@ -433,7 +433,7 @@ def real_time_filter(condition:str, data_dict):
         if res_model.selected_block in allowed_power_blocks:
             conditions_met = True
 
-    if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or block_filter or filter_criteria.get("powerBlock"):
+    if filter_criteria.get("sweep") or filter_criteria.get("powerSweep") or block_filter or filter_criteria.get("powerBlock") or block_star_filter or sweep_star_filter:
         if not conditions_met:
             return None
     
