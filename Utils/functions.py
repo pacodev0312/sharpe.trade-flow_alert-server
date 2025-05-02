@@ -391,9 +391,11 @@ def real_time_filter(condition:str, data_dict):
             conditions_met = True
 
     elif sweep_star_filter:
+        print(sweep_star_filter)
         # Case 2: Only sweep star filter (sweep filter missing or empty)
         allowed_sweep_stars = sweep_star_filter.split("+")
         if str(selected_sweep_star) in allowed_sweep_stars:
+            print(selected_sweep_star, allowed_sweep_stars)
             conditions_met = True
                 
     if filter_criteria.get("powerSweep"):
