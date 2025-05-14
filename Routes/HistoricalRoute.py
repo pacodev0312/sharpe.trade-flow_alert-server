@@ -11,7 +11,7 @@ router = APIRouter(
     tags=["HistoricalRoute"]
 )
 
-allow_email=['rs@quantower.in', 'dev2@quantower.in']
+allow_email=['rs@quantower.in']
 
 @router.get('/getLastNTicks')
 async def get_last_n_ticks(condition: str, interval: Optional[str] = None):
