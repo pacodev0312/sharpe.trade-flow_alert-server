@@ -11,6 +11,8 @@ router = APIRouter(
     tags=["HistoricalRoute"]
 )
 
+allow_email=['rs@quantower.in', 'dev2@quantower.in']
+
 @router.get('/getLastNTicks')
 async def get_last_n_ticks(condition: str, interval: Optional[str] = None):
     try:
@@ -39,11 +41,16 @@ async def get_all_conditions(email: str):
 
 @router.post("/postAddNewFilteringOption")
 async def post_add_new_filtering_option(condition: str, email: str):
+    
     condition_dict = dict(item.split(":") for item in condition.split(",") if ':' in item)
     title = condition_dict.get("title", None)
     status = condition_dict.get("status", None)
     if status is None:
         status = OptionStatus.Private
+        
+    if email not in allow_email and status is not OptionStatus.Private:
+        raise HTTPException(status_code=400, detail="You can't create public scan")
+    
     old_option = filtering_option.get_option_by_title(db=Session(), title=title)
     if old_option:
         raise HTTPException(status_code=400, detail="The same title already exists")
@@ -59,6 +66,10 @@ async def post_update_filtering_option(condition: str, email: str, id: int):
         title = condition_dict.get("title")
         status = condition_dict.get("status")
         old_option = filtering_option.get_option_by_title(db=Session(), title=title)
+        
+        if email not in allow_email and status is not OptionStatus.Private:
+            raise HTTPException(status_code=400, detail="You can't create public scan")
+        
         if old_option and old_option.id != id:
             raise HTTPException(status_code=400, detail="The same title already exists")
         # Update and return the updated row
